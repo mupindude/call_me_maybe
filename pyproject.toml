@@ -10,7 +10,7 @@ dependencies = [
 
 [tool.uv.workspace]
 members = [
-    "llm_sdk",
+    "vendor/llm_sdk",
 ]
 
 [tool.uv.sources]
