@@ -95,8 +95,8 @@ def build_qwen_prompt(
     return (
         "<|im_start|>system\n"
         "# Tools\n\n"
-        "You may call one or more functions to assist with "
-        "the user query.\n\n"
+        "You MUST call exactly one function to assist with "
+        "the user query. Never answer the user directly.\n\n"
         "You are provided with function signatures within "
         "<tools></tools> XML tags:\n"
         "<tools>\n"
