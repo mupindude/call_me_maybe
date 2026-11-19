@@ -254,6 +254,10 @@ class JSONPrefixParser:
         number_text = self.text[start:self.index]
         status = check_json_number(number_text)
 
+        if status == PrefixStatus.INCOMPLETE:
+            if self.index < len(self.text):
+                status = PrefixStatus.INVALID
+
         if status != PrefixStatus.VALID:
             self.index = start
 
@@ -292,8 +296,11 @@ class JSONPrefixParser:
         if char in "tfn":
             return self.parse_literal()
 
-        if char in "{[":
-            return PrefixStatus.INCOMPLETE
+        if char == "{":
+            return self.parse_object()
+
+        if char == "[":
+            return self.parse_array()
 
         return PrefixStatus.INVALID
 
@@ -344,3 +351,46 @@ class JSONPrefixParser:
             return PrefixStatus.INVALID
 
         return self.parse_value()
+
+    def parse_array(self) -> PrefixStatus:
+        """Parse a JSON array containing zero or more values."""
+        if not self.consume("["):
+            return PrefixStatus.INVALID
+
+        self.skip_whitespace()
+
+        if self.consume("]"):
+            return PrefixStatus.VALID
+
+        while True:
+            status = self.parse_value()
+
+            if status != PrefixStatus.VALID:
+                return status
+
+            self.skip_whitespace()
+
+            if self.consume("]"):
+                return PrefixStatus.VALID
+
+            if not self.consume(","):
+                if self.current_char() is None:
+                    return PrefixStatus.INCOMPLETE
+                return PrefixStatus.INVALID
+
+            self.skip_whitespace()
+
+    def parse(self) -> PrefixStatus:
+        """Validate the entire JSON document or prefix."""
+        self.skip_whitespace()
+        status = self.parse_value()
+
+        if status != PrefixStatus.VALID:
+            return status
+
+        self.skip_whitespace()
+
+        if self.current_char() is not None:
+            return PrefixStatus.INVALID
+
+        return PrefixStatus.VALID
