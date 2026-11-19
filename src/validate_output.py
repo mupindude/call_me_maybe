@@ -1,4 +1,5 @@
 from src.models import FunctionCallOutput, FunctionDefinition
+from src.parse_output import parse_function_call
 
 
 def find_function_definition(
@@ -60,3 +61,46 @@ def validate_function_call(
         return False
 
     return True
+
+
+def build_function_call_output(
+    parsed_data: dict[str, object],
+    prompt: str,
+) -> FunctionCallOutput:
+    """Convert parsed model output into the required output model."""
+    if set(parsed_data.keys()) != {"name", "arguments"}:
+        raise ValueError("Invalid function-call structure")
+
+    name = parsed_data["name"]
+    arguments = parsed_data["arguments"]
+
+    if not isinstance(name, str):
+        raise ValueError("Function name must be a string")
+
+    if not isinstance(arguments, dict):
+        raise ValueError("Function arguments must be an object")
+
+    return FunctionCallOutput.model_validate({
+        "prompt": prompt,
+        "name": name,
+        "parameters": arguments,
+    })
+
+
+def process_generated_output(
+    generated_text: str,
+    prompt: str,
+    definitions: list[FunctionDefinition],
+) -> FunctionCallOutput:
+    """Parse, convert and validate generated function-call output."""
+    parsed_data = parse_function_call(generated_text)
+
+    output = build_function_call_output(
+        parsed_data,
+        prompt,
+    )
+
+    if not validate_function_call(output, definitions):
+        raise ValueError("Invalid generated function call")
+
+    return output
