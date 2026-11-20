@@ -154,6 +154,18 @@ def check_json_value_start(text: str, index: int) -> PrefixStatus:
     return PrefixStatus.INVALID
 
 
+def decode_json_string(text: str) -> str:
+    """Decode a complete JSON string into a Python string."""
+    import json
+
+    value = json.loads(text)
+
+    if not isinstance(value, str):
+        raise ValueError("Expected a JSON string")
+
+    return value
+
+
 class JSONPrefixParser:
     """Parse JSON text while tracking the current position."""
 
