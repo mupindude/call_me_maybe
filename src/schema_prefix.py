@@ -92,6 +92,18 @@ def validate_tool_call(
     return False
 
 
+def find_function_definition(
+    name: str,
+    definitions: list[FunctionDefinition],
+) -> FunctionDefinition | None:
+    """Find a function definition by its name."""
+    for definition in definitions:
+        if definition.name == name:
+            return definition
+
+    return None
+
+
 def decode_complete_key_prefix(text: str) -> str:
     """Decode all complete characters in an unfinished JSON string."""
     raw_key = text[1:]
@@ -444,3 +456,68 @@ def parse_argument_pair(
         return status, None
 
     return PrefixStatus.VALID, key
+
+
+def check_argument_object(
+    text: str,
+    definition: FunctionDefinition,
+) -> PrefixStatus:
+    """Validate an argument object against a function definition."""
+    parser = JSONPrefixParser(text)
+    used_names: set[str] = set()
+
+    parser.skip_whitespace()
+
+    if not parser.consume("{"):
+        if parser.current_char() is None:
+            return PrefixStatus.INCOMPLETE
+        return PrefixStatus.INVALID
+
+    parser.skip_whitespace()
+
+    if parser.current_char() is None:
+        return PrefixStatus.INCOMPLETE
+
+    if parser.consume("}"):
+        if not definition.parameters:
+            return PrefixStatus.VALID
+        return PrefixStatus.INVALID
+
+    while True:
+        status, key = parse_argument_pair(
+            parser,
+            text,
+            definition,
+            used_names,
+        )
+
+        if status != PrefixStatus.VALID:
+            return status
+
+        if key is None:
+            return PrefixStatus.INVALID
+
+        used_names.add(key)
+
+        parser.skip_whitespace()
+
+        if parser.consume("}"):
+            parser.skip_whitespace()
+
+            if parser.current_char() is not None:
+                return PrefixStatus.INVALID
+
+            if used_names == set(definition.parameters.keys()):
+                return PrefixStatus.VALID
+
+            return PrefixStatus.INVALID
+
+        if not parser.consume(","):
+            if parser.current_char() is None:
+                return PrefixStatus.INCOMPLETE
+            return PrefixStatus.INVALID
+
+        parser.skip_whitespace()
+
+        if parser.current_char() is None:
+            return PrefixStatus.INCOMPLETE
