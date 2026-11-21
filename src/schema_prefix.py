@@ -92,29 +92,6 @@ def validate_tool_call(
     return False
 
 
-def check_tool_call_key_prefix(text: str) -> PrefixStatus:
-    """Check whether text can become a valid tool-call key."""
-    allowed_keys = ("name", "arguments")
-
-    for key in allowed_keys:
-        if key.startswith(text):
-            if text == key:
-                return PrefixStatus.VALID
-            return PrefixStatus.INCOMPLETE
-
-    return PrefixStatus.INVALID
-
-
-def check_tool_call_json_key(text: str) -> PrefixStatus:
-    """Validate a complete JSON key against the allowed tool-call keys."""
-    try:
-        key = decode_json_string(text)
-    except (ValueError, TypeError):
-        return PrefixStatus.INVALID
-
-    return check_tool_call_key_prefix(key)
-
-
 def decode_complete_key_prefix(text: str) -> str:
     """Decode all complete characters in an unfinished JSON string."""
     raw_key = text[1:]
@@ -142,27 +119,41 @@ def decode_complete_key_prefix(text: str) -> str:
     return decode_json_string('"' + complete_prefix + '"')
 
 
-def check_tool_call_key_progress(text: str) -> PrefixStatus:
-    """Check whether a JSON key prefix can become an allowed tool-call key."""
-    string_status = check_json_string(text)
+def check_string_prefix(
+    text: str,
+    allowed_values: list[str],
+) -> PrefixStatus:
+    """Check whether a JSON string can become an allowed value."""
+    status = check_json_string(text)
 
-    if string_status == PrefixStatus.INVALID:
+    if status == PrefixStatus.INVALID:
         return PrefixStatus.INVALID
 
-    if string_status == PrefixStatus.INCOMPLETE:
+    if status == PrefixStatus.INCOMPLETE:
         try:
-            decoded_prefix = decode_complete_key_prefix(text)
+            value = decode_complete_key_prefix(text)
         except (ValueError, TypeError):
             return PrefixStatus.INVALID
 
-        return check_tool_call_key_prefix(decoded_prefix)
+        if any(item.startswith(value) for item in allowed_values):
+            return PrefixStatus.INCOMPLETE
+
+        return PrefixStatus.INVALID
 
     try:
-        key = decode_json_string(text)
+        value = decode_json_string(text)
     except (ValueError, TypeError):
         return PrefixStatus.INVALID
 
-    return check_tool_call_key_prefix(key)
+    if value in allowed_values:
+        return PrefixStatus.VALID
+
+    return PrefixStatus.INVALID
+
+
+def check_tool_call_key_progress(text: str) -> PrefixStatus:
+    """Check whether a JSON key prefix can become an allowed tool-call key."""
+    return check_string_prefix(text, ["name", "arguments"])
 
 
 def check_first_root_key_prefix(text: str) -> PrefixStatus:
@@ -205,21 +196,12 @@ def check_root_key_colon(text: str) -> PrefixStatus:
     if not parser.consume("{"):
         return PrefixStatus.INVALID
 
-    parser.skip_whitespace()
+    remaining = text[parser.index:]
 
-    status = parser.parse_string()
-    if status != PrefixStatus.VALID:
-        return status
-
-    parser.skip_whitespace()
-
-    if parser.consume(":"):
+    if not remaining.strip():
         return PrefixStatus.INCOMPLETE
 
-    if parser.current_char() is None:
-        return PrefixStatus.INCOMPLETE
-
-    return PrefixStatus.INVALID
+    return check_string_colon(remaining)
 
 
 def check_function_name_value(
@@ -227,37 +209,12 @@ def check_function_name_value(
     definitions: list[FunctionDefinition],
 ) -> PrefixStatus:
     """Check whether a JSON string can become a defined function name."""
-    status = check_json_string(text)
-
-    if status == PrefixStatus.INVALID:
-        return PrefixStatus.INVALID
-
-    if status == PrefixStatus.INCOMPLETE:
-        try:
-            value = decode_complete_key_prefix(text)
-        except (ValueError, TypeError):
-            return PrefixStatus.INVALID
-
-        candidates = [definition.name for definition in definitions]
-
-        if any(name.startswith(value) for name in candidates):
-            return PrefixStatus.INCOMPLETE
-
-        return PrefixStatus.INVALID
-
-    try:
-        value = decode_json_string(text)
-    except (ValueError, TypeError):
-        return PrefixStatus.INVALID
-
-    if any(value == definition.name for definition in definitions):
-        return PrefixStatus.VALID
-
-    return PrefixStatus.INVALID
+    names = [definition.name for definition in definitions]
+    return check_string_prefix(text, names)
 
 
-def check_function_name_colon(text: str) -> PrefixStatus:
-    """Check whether a completed function name is followed by a colon."""
+def check_string_colon(text: str) -> PrefixStatus:
+    """Check whether a JSON string is followed by a colon."""
     parser = JSONPrefixParser(text)
     parser.skip_whitespace()
 
@@ -276,8 +233,8 @@ def check_function_name_colon(text: str) -> PrefixStatus:
     return PrefixStatus.INVALID
 
 
-def check_function_name_comma(text: str) -> PrefixStatus:
-    """Check whether a completed function name value is followed by a comma."""
+def check_string_comma(text: str) -> PrefixStatus:
+    """Check whether a JSON string is followed by a comma."""
     parser = JSONPrefixParser(text)
     parser.skip_whitespace()
 
@@ -298,51 +255,7 @@ def check_function_name_comma(text: str) -> PrefixStatus:
 
 def check_arguments_key_value(text: str) -> PrefixStatus:
     """Check whether a JSON string can become the arguments key."""
-    status = check_json_string(text)
-
-    if status == PrefixStatus.INVALID:
-        return PrefixStatus.INVALID
-
-    if status == PrefixStatus.INCOMPLETE:
-        try:
-            value = decode_complete_key_prefix(text)
-        except (ValueError, TypeError):
-            return PrefixStatus.INVALID
-
-        if "arguments".startswith(value):
-            return PrefixStatus.INCOMPLETE
-
-        return PrefixStatus.INVALID
-
-    try:
-        value = decode_json_string(text)
-    except (ValueError, TypeError):
-        return PrefixStatus.INVALID
-
-    if value == "arguments":
-        return PrefixStatus.VALID
-
-    return PrefixStatus.INVALID
-
-
-def check_arguments_key_colon(text: str) -> PrefixStatus:
-    """Check whether the arguments key is followed by a colon."""
-    parser = JSONPrefixParser(text)
-    parser.skip_whitespace()
-
-    status = parser.parse_string()
-    if status != PrefixStatus.VALID:
-        return status
-
-    parser.skip_whitespace()
-
-    if parser.consume(":"):
-        return PrefixStatus.INCOMPLETE
-
-    if parser.current_char() is None:
-        return PrefixStatus.INCOMPLETE
-
-    return PrefixStatus.INVALID
+    return check_string_prefix(text, ["arguments"])
 
 
 def check_arguments_object_start(text: str) -> PrefixStatus:
