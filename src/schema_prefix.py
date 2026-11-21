@@ -344,3 +344,103 @@ def check_arguments_object_start(text: str) -> PrefixStatus:
         return PrefixStatus.INCOMPLETE
 
     return PrefixStatus.INVALID
+
+
+def parse_parameter_value(
+    parser: JSONPrefixParser,
+    parameter_type: str,
+) -> PrefixStatus:
+    """Parse a parameter value according to its declared type."""
+    parser.skip_whitespace()
+    char = parser.current_char()
+
+    if char is None:
+        return PrefixStatus.INCOMPLETE
+
+    if parameter_type == "string":
+        if char != '"':
+            return PrefixStatus.INVALID
+        return parser.parse_string()
+
+    if parameter_type == "number":
+        if char != "-" and not char.isdigit():
+            return PrefixStatus.INVALID
+        return parser.parse_number()
+
+    return PrefixStatus.INVALID
+
+
+def parse_argument_key(
+    parser: JSONPrefixParser,
+    text: str,
+    definition: FunctionDefinition,
+    used_names: set[str],
+) -> tuple[PrefixStatus, str | None]:
+    """Parse and validate one argument key. ie names & preventing dups"""
+    start = parser.index
+
+    status = parser.parse_string()
+
+    if status == PrefixStatus.INCOMPLETE:
+        key_prefix = text[start:]
+        status = check_unused_argument_key_value(
+            key_prefix,
+            definition,
+            used_names,
+        )
+        return status, None
+
+    if status != PrefixStatus.VALID:
+        return status, None
+
+    key_text = text[start:parser.index]
+    key = decode_json_string(key_text)
+
+    allowed_names = get_unused_parameter_names(
+        definition,
+        used_names,
+    )
+
+    if key not in allowed_names:
+        return PrefixStatus.INVALID, None
+
+    return PrefixStatus.VALID, key
+
+
+def parse_argument_pair(
+    parser: JSONPrefixParser,
+    text: str,
+    definition: FunctionDefinition,
+    used_names: set[str],
+) -> tuple[PrefixStatus, str | None]:
+    """Parse one argument key-value pair."""
+    status, key = parse_argument_key(
+        parser,
+        text,
+        definition,
+        used_names,
+    )
+
+    if status != PrefixStatus.VALID:
+        return status, None
+    if key is None:
+        return PrefixStatus.INVALID, None
+
+    parser.skip_whitespace()
+
+    if not parser.consume(":"):
+        if parser.current_char() is None:
+            return PrefixStatus.INCOMPLETE, None
+        return PrefixStatus.INVALID, None
+
+    parameter_type = definition.parameters[key].type
+
+    status = parse_parameter_value(
+        parser,
+        parameter_type,
+    )
+
+    if status != PrefixStatus.VALID:
+        return status, None
+
+    return PrefixStatus.VALID, key
