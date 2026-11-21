@@ -258,6 +258,80 @@ def check_arguments_key_value(text: str) -> PrefixStatus:
     return check_string_prefix(text, ["arguments"])
 
 
+def check_argument_key_value(
+    text: str,
+    definition: FunctionDefinition,
+) -> PrefixStatus:
+    """Check whether a JSON string can become a defined argument name."""
+    parameter_names = list(definition.parameters.keys())
+    return check_string_prefix(text, parameter_names)
+
+
+def get_unused_parameter_names(
+    definition: FunctionDefinition,
+    used_names: set[str],
+) -> list[str]:
+    """Return parameter names that have not been used yet."""
+    return [
+        name
+        for name in definition.parameters
+        if name not in used_names
+    ]
+
+
+def extract_used_argument_names(text: str) -> set[str]:
+    """Extract completed keys from a JSON object prefix."""
+    parser = JSONPrefixParser(text)
+    used_names: set[str] = set()
+
+    parser.skip_whitespace()
+
+    if not parser.consume("{"):
+        return used_names
+
+    parser.skip_whitespace()
+
+    while parser.current_char() == '"':
+        start = parser.index
+
+        status = parser.parse_string()
+        if status != PrefixStatus.VALID:
+            break
+
+        key_text = text[start:parser.index]
+
+        parser.skip_whitespace()
+
+        if not parser.consume(":"):
+            break
+
+        status = parser.parse_value()
+        if status != PrefixStatus.VALID:
+            break
+
+        key = decode_json_string(key_text)
+        used_names.add(key)
+
+        parser.skip_whitespace()
+
+        if not parser.consume(","):
+            break
+
+        parser.skip_whitespace()
+
+    return used_names
+
+
+def check_unused_argument_key_value(
+    text: str,
+    definition: FunctionDefinition,
+    used_names: set[str],
+) -> PrefixStatus:
+    """Check whether a JSON string can become an unused argument name."""
+    allowed_names = get_unused_parameter_names(definition, used_names)
+    return check_string_prefix(text, allowed_names)
+
+
 def check_arguments_object_start(text: str) -> PrefixStatus:
     """Check whether the arguments value starts with a JSON object."""
     parser = JSONPrefixParser(text)
