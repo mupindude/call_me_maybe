@@ -1,15 +1,17 @@
+
 import json
 from llm_sdk import Small_LLM_Model
 
-from src.generation import generate_text
+from src.generation import generate_constrained_text
 from src.load_data import (
     load_function_definitions,
     load_test_cases,
 )
 from src.prompt_builder import build_qwen_prompt
 from src.tokenizer_utils import (
-    get_end_token_id,
-    get_valid_token_ids,
+    build_byte_encoder,
+    build_token_bytes,
+    load_added_token_ids,
     load_id_to_token,
 )
 from src.validate_output import process_generated_output
@@ -17,29 +19,37 @@ from src.models import FunctionCallOutput
 
 
 def main() -> None:
-    """Test function-call generation with the Qwen model."""
-    definitions = load_function_definitions("data/input/functions_definition.json")
-
+    """Test constrained function-call generation with the Qwen model."""
+    definitions = load_function_definitions(
+        "data/input/functions_definition.json"
+        )
     test_cases = load_test_cases("data/input/function_calling_tests.json")
 
     model = Small_LLM_Model()
 
     id_to_token = load_id_to_token(model)
-    valid_token_ids = get_valid_token_ids(id_to_token)
-    end_token_id = get_end_token_id(model)
+    added_token_ids = load_added_token_ids(model)
+    byte_encoder = build_byte_encoder()
+    token_bytes = build_token_bytes(
+        id_to_token,
+        byte_encoder,
+        added_token_ids,
+    )
+
     results: list[FunctionCallOutput] = []
+
     for test_case in test_cases:
         prompt = build_qwen_prompt(
             test_case.prompt,
             definitions,
         )
 
-        generated_text = generate_text(
+        generated_text = generate_constrained_text(
             model,
             prompt,
-            valid_token_ids,
-            end_token_id,
-            max_new_tokens=60,
+            token_bytes,
+            definitions,
+            max_new_tokens=100,
         )
 
         try:
