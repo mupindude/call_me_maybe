@@ -80,11 +80,16 @@ def build_function_call_output(
     if not isinstance(arguments, dict):
         raise ValueError("Function arguments must be an object")
 
-    return FunctionCallOutput.model_validate({
+    output = FunctionCallOutput.model_validate({
         "prompt": prompt,
         "name": name,
         "parameters": arguments,
     })
+
+    if not isinstance(output, FunctionCallOutput):
+        raise TypeError("Invalid function call output")
+
+    return output
 
 
 def process_generated_output(

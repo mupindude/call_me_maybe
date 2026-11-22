@@ -104,6 +104,24 @@ def find_function_definition(
     return None
 
 
+def extract_json_string(
+    text: str,
+    start: int,
+) -> tuple[PrefixStatus, str | None, int]:
+    """Extract a complete JSON string starting at a given index."""
+    parser = JSONPrefixParser(text)
+    parser.index = start
+
+    status = parser.parse_string()
+
+    if status != PrefixStatus.VALID:
+        return status, None, parser.index
+
+    value = decode_json_string(text[start:parser.index])
+
+    return PrefixStatus.VALID, value, parser.index
+
+
 def decode_complete_key_prefix(text: str) -> str:
     """Decode all complete characters in an unfinished JSON string."""
     raw_key = text[1:]
@@ -163,11 +181,6 @@ def check_string_prefix(
     return PrefixStatus.INVALID
 
 
-def check_tool_call_key_progress(text: str) -> PrefixStatus:
-    """Check whether a JSON key prefix can become an allowed tool-call key."""
-    return check_string_prefix(text, ["name", "arguments"])
-
-
 def check_first_root_key_prefix(text: str) -> PrefixStatus:
     """Validate the first key in a tool-call JSON object."""
     parser = JSONPrefixParser(text)
@@ -197,23 +210,7 @@ def check_first_root_key_prefix(text: str) -> PrefixStatus:
         status == PrefixStatus.VALID
     ) else text[start:]
 
-    return check_tool_call_key_progress(key_text)
-
-
-def check_root_key_colon(text: str) -> PrefixStatus:
-    """Check whether a completed root key is followed by a colon."""
-    parser = JSONPrefixParser(text)
-    parser.skip_whitespace()
-
-    if not parser.consume("{"):
-        return PrefixStatus.INVALID
-
-    remaining = text[parser.index:]
-
-    if not remaining.strip():
-        return PrefixStatus.INCOMPLETE
-
-    return check_string_colon(remaining)
+    return check_string_prefix(key_text, ["name"])
 
 
 def check_function_name_value(
@@ -225,58 +222,9 @@ def check_function_name_value(
     return check_string_prefix(text, names)
 
 
-def check_string_colon(text: str) -> PrefixStatus:
-    """Check whether a JSON string is followed by a colon."""
-    parser = JSONPrefixParser(text)
-    parser.skip_whitespace()
-
-    status = parser.parse_string()
-    if status != PrefixStatus.VALID:
-        return status
-
-    parser.skip_whitespace()
-
-    if parser.consume(":"):
-        return PrefixStatus.INCOMPLETE
-
-    if parser.current_char() is None:
-        return PrefixStatus.INCOMPLETE
-
-    return PrefixStatus.INVALID
-
-
-def check_string_comma(text: str) -> PrefixStatus:
-    """Check whether a JSON string is followed by a comma."""
-    parser = JSONPrefixParser(text)
-    parser.skip_whitespace()
-
-    status = parser.parse_string()
-    if status != PrefixStatus.VALID:
-        return status
-
-    parser.skip_whitespace()
-
-    if parser.consume(","):
-        return PrefixStatus.INCOMPLETE
-
-    if parser.current_char() is None:
-        return PrefixStatus.INCOMPLETE
-
-    return PrefixStatus.INVALID
-
-
 def check_arguments_key_value(text: str) -> PrefixStatus:
     """Check whether a JSON string can become the arguments key."""
     return check_string_prefix(text, ["arguments"])
-
-
-def check_argument_key_value(
-    text: str,
-    definition: FunctionDefinition,
-) -> PrefixStatus:
-    """Check whether a JSON string can become a defined argument name."""
-    parameter_names = list(definition.parameters.keys())
-    return check_string_prefix(text, parameter_names)
 
 
 def get_unused_parameter_names(
@@ -291,49 +239,6 @@ def get_unused_parameter_names(
     ]
 
 
-def extract_used_argument_names(text: str) -> set[str]:
-    """Extract completed keys from a JSON object prefix."""
-    parser = JSONPrefixParser(text)
-    used_names: set[str] = set()
-
-    parser.skip_whitespace()
-
-    if not parser.consume("{"):
-        return used_names
-
-    parser.skip_whitespace()
-
-    while parser.current_char() == '"':
-        start = parser.index
-
-        status = parser.parse_string()
-        if status != PrefixStatus.VALID:
-            break
-
-        key_text = text[start:parser.index]
-
-        parser.skip_whitespace()
-
-        if not parser.consume(":"):
-            break
-
-        status = parser.parse_value()
-        if status != PrefixStatus.VALID:
-            break
-
-        key = decode_json_string(key_text)
-        used_names.add(key)
-
-        parser.skip_whitespace()
-
-        if not parser.consume(","):
-            break
-
-        parser.skip_whitespace()
-
-    return used_names
-
-
 def check_unused_argument_key_value(
     text: str,
     definition: FunctionDefinition,
@@ -342,20 +247,6 @@ def check_unused_argument_key_value(
     """Check whether a JSON string can become an unused argument name."""
     allowed_names = get_unused_parameter_names(definition, used_names)
     return check_string_prefix(text, allowed_names)
-
-
-def check_arguments_object_start(text: str) -> PrefixStatus:
-    """Check whether the arguments value starts with a JSON object."""
-    parser = JSONPrefixParser(text)
-    parser.skip_whitespace()
-
-    if parser.consume("{"):
-        return PrefixStatus.INCOMPLETE
-
-    if parser.current_char() is None:
-        return PrefixStatus.INCOMPLETE
-
-    return PrefixStatus.INVALID
 
 
 def parse_parameter_value(
@@ -375,7 +266,7 @@ def parse_parameter_value(
         return parser.parse_string()
 
     if parameter_type == "number":
-        if char != "-" and not char.isdigit():
+        if char != "-" and char not in "0123456789":
             return PrefixStatus.INVALID
         return parser.parse_number()
 
@@ -521,3 +412,139 @@ def check_argument_object(
 
         if parser.current_char() is None:
             return PrefixStatus.INCOMPLETE
+
+
+def check_tool_call_prefix(
+    text: str,
+    definitions: list[FunctionDefinition],
+) -> PrefixStatus:
+    """Validate a tool-call JSON prefix against function definitions."""
+    parser = JSONPrefixParser(text)
+    parser.skip_whitespace()
+
+    if not parser.consume("{"):
+        if parser.current_char() is None:
+            return PrefixStatus.INCOMPLETE
+        return PrefixStatus.INVALID
+
+    parser.skip_whitespace()
+
+    if parser.current_char() is None:
+        return PrefixStatus.INCOMPLETE
+
+    key_start = parser.index
+    status = parser.parse_string()
+
+    if status == PrefixStatus.INCOMPLETE:
+        return check_first_root_key_prefix(text)
+
+    if status != PrefixStatus.VALID:
+        return PrefixStatus.INVALID
+
+    key = decode_json_string(text[key_start:parser.index])
+
+    if key != "name":
+        return PrefixStatus.INVALID
+
+    parser.skip_whitespace()
+
+    if not parser.consume(":"):
+        if parser.current_char() is None:
+            return PrefixStatus.INCOMPLETE
+        return PrefixStatus.INVALID
+
+    parser.skip_whitespace()
+
+    if parser.current_char() is None:
+        return PrefixStatus.INCOMPLETE
+
+    name_start = parser.index
+
+    status, name, name_end = extract_json_string(
+        text,
+        name_start,
+    )
+
+    if status == PrefixStatus.INCOMPLETE:
+        return check_function_name_value(text[name_start:], definitions)
+
+    if status != PrefixStatus.VALID or name is None:
+        return PrefixStatus.INVALID
+
+    definition = find_function_definition(name, definitions)
+
+    if definition is None:
+        return PrefixStatus.INVALID
+
+    parser.index = name_end
+    parser.skip_whitespace()
+
+    if not parser.consume(","):
+        if parser.current_char() is None:
+            return PrefixStatus.INCOMPLETE
+        return PrefixStatus.INVALID
+
+    parser.skip_whitespace()
+
+    if parser.current_char() is None:
+        return PrefixStatus.INCOMPLETE
+
+    key_start = parser.index
+    status = parser.parse_string()
+
+    if status == PrefixStatus.INCOMPLETE:
+        return check_arguments_key_value(text[key_start:])
+
+    if status != PrefixStatus.VALID:
+        return PrefixStatus.INVALID
+
+    key = decode_json_string(text[key_start:parser.index])
+
+    if key != "arguments":
+        return PrefixStatus.INVALID
+
+    parser.skip_whitespace()
+
+    if not parser.consume(":"):
+        if parser.current_char() is None:
+            return PrefixStatus.INCOMPLETE
+        return PrefixStatus.INVALID
+
+    parser.skip_whitespace()
+
+    if parser.current_char() is None:
+        return PrefixStatus.INCOMPLETE
+
+    arguments_start = parser.index
+
+    status = parser.parse_object()
+
+    if status != PrefixStatus.VALID:
+        return check_argument_object(
+            text[arguments_start:],
+            definition,
+        )
+
+    arguments_end = parser.index
+
+    status = check_argument_object(
+        text[arguments_start:arguments_end],
+        definition,
+    )
+
+    if status != PrefixStatus.VALID:
+        return status
+
+    parser.skip_whitespace()
+
+    if not parser.consume("}"):
+        if parser.current_char() is None:
+            return PrefixStatus.INCOMPLETE
+        return PrefixStatus.INVALID
+
+    parser.skip_whitespace()
+
+    if parser.current_char() is not None:
+        return PrefixStatus.INVALID
+
+    return PrefixStatus.VALID
