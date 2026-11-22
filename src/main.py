@@ -1,5 +1,6 @@
 import json
 import sys
+from pathlib import Path
 
 from src.arguments import parse_arguments
 from src.generation import generate_constrained_text
@@ -18,7 +19,10 @@ def save_results(
     output_path: str,
 ) -> None:
     """Save validated function calls to a JSON file."""
-    with open(output_path, "w", encoding="utf-8") as file:
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(output_file, "w", encoding="utf-8") as file:
         json.dump(
             [result.model_dump() for result in results],
             file,
@@ -77,7 +81,7 @@ def main() -> None:
             f"to {args.output}"
         )
 
-    except (ValueError, TypeError, OSError) as error:
+    except Exception as error:
         print(f"Application error: {error}")
         sys.exit(1)
 
