@@ -36,9 +36,7 @@ def has_valid_parameter_types(
             if not isinstance(value, str):
                 return False
         elif parameter.type == "number":
-            if not isinstance(value, (int, float)):
-                return False
-            if isinstance(value, bool):
+            if not isinstance(value, float):
                 return False
 
     return True

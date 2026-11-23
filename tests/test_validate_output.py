@@ -5,6 +5,7 @@ from src.validate_output import validate_function_call
 from src.validate_output import build_function_call_output
 from src.validate_output import process_generated_output
 
+
 def main() -> None:
     """Test function-call validation."""
     definitions = load_function_definitions(
@@ -14,7 +15,7 @@ def main() -> None:
     output = FunctionCallOutput(
         prompt="What is the sum of 2 and 3?",
         name="fn_add_numbers",
-        parameters={"a": 2, "b": 3},
+        parameters={"a": 2.0, "b": 3.0},
     )
 
     print(
@@ -58,11 +59,22 @@ def main() -> None:
         validate_function_call(wrong_types, definitions),
     )
 
+    integer_types = FunctionCallOutput(
+        prompt="Test",
+        name="fn_add_numbers",
+        parameters={"a": 2, "b": 3},
+        )
+
+    print(
+        "Integer parameters rejected:",
+        not validate_function_call(integer_types, definitions),
+    )
+
     parsed_data = {
         "name": "fn_add_numbers",
         "arguments": {
-            "a": 2,
-            "b": 3,
+            "a": 2.0,
+            "b": 3.0,
         },
     }
 
@@ -81,7 +93,7 @@ def main() -> None:
     generated_text = (
         '<tool_call>\n'
         '{"name": "fn_add_numbers", '
-        '"arguments": {"a": 2, "b": 3}}\n'
+        '"arguments": {"a": 2.0, "b": 3.0}}\n'
         '</tool_call>'
     )
 

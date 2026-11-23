@@ -21,6 +21,15 @@ def select_valid_token(
     scores = np.asarray(logits, dtype=np.float64)
     finite_ids = np.flatnonzero(np.isfinite(scores))
 
+    current_text, current_complete = decode_utf8_prefix(generated_bytes)
+    current_status = PrefixStatus.INCOMPLETE
+
+    if current_complete:
+        current_status = check_tool_call_prefix(
+            current_text,
+            definitions,
+        )
+
     if len(finite_ids) == 0:
         raise ValueError("No valid token candidates")
 
@@ -45,6 +54,10 @@ def select_valid_token(
             if token_piece is None:
                 continue
 
+            if current_status == PrefixStatus.FLOAT_REQUIRED:
+                if not token_piece or token_piece[0] not in b".eE":
+                    continue
+
             candidate_bytes = generated_bytes + token_piece
 
             try:
@@ -62,7 +75,10 @@ def select_valid_token(
             if status == PrefixStatus.INVALID:
                 continue
 
-            if not complete and status != PrefixStatus.INCOMPLETE:
+            if not complete and status not in (
+                    PrefixStatus.INCOMPLETE,
+                    PrefixStatus.FLOAT_REQUIRED,
+                    ):
                 continue
 
             return int(token_id), token_piece
