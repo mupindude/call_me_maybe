@@ -268,21 +268,7 @@ def parse_parameter_value(
     if parameter_type == "number":
         if char != "-" and char not in "0123456789":
             return PrefixStatus.INVALID
-
-        start = parser.index
-        status = parser.parse_number()
-
-        if status != PrefixStatus.VALID:
-            return status
-
-        number_text = parser.text[start:parser.index]
-
-        if "." not in number_text and "e" not in number_text.lower():
-            if parser.current_char() is None:
-                return PrefixStatus.FLOAT_REQUIRED
-            return PrefixStatus.INVALID
-
-        return PrefixStatus.VALID
+        return parser.parse_number()
 
     return PrefixStatus.INVALID
 

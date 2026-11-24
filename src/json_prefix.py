@@ -7,7 +7,6 @@ class PrefixStatus(Enum):
     VALID = "valid"
     INCOMPLETE = "incomplete"
     INVALID = "invalid"
-    FLOAT_REQUIRED = "float_required"
 
 
 def check_json_string(text: str) -> PrefixStatus:

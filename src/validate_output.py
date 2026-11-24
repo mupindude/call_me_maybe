@@ -64,6 +64,7 @@ def validate_function_call(
 def build_function_call_output(
     parsed_data: dict[str, object],
     prompt: str,
+    definitions: list[FunctionDefinition],
 ) -> FunctionCallOutput:
     """Convert parsed model output into the required output model."""
     if set(parsed_data.keys()) != {"name", "arguments"}:
@@ -78,14 +79,33 @@ def build_function_call_output(
     if not isinstance(arguments, dict):
         raise ValueError("Function arguments must be an object")
 
+    definition = next(
+        (
+            item for item in definitions
+            if item.name == name
+        ),
+        None,
+    )
+
+    if definition is None:
+        raise ValueError("Unknown function name")
+
+    normalized_arguments = arguments.copy()
+
+    for parameter_name, parameter in definition.parameters.items():
+        value = normalized_arguments.get(parameter_name)
+
+        if parameter.type == "number":
+            if isinstance(value, bool):
+                raise ValueError("Boolean is not a valid number")
+            if isinstance(value, (int, float)):
+                normalized_arguments[parameter_name] = float(value)
+
     output = FunctionCallOutput.model_validate({
         "prompt": prompt,
         "name": name,
-        "parameters": arguments,
+        "parameters": normalized_arguments,
     })
-
-    if not isinstance(output, FunctionCallOutput):
-        raise TypeError("Invalid function call output")
 
     return output
 
@@ -101,6 +121,7 @@ def process_generated_output(
     output = build_function_call_output(
         parsed_data,
         prompt,
+        definitions,
     )
 
     if not validate_function_call(output, definitions):

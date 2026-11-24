@@ -81,6 +81,7 @@ def main() -> None:
     result = build_function_call_output(
         parsed_data,
         "What is the sum of 2 and 3?",
+        definitions,
     )
 
     print("Converted output:", result.model_dump())
@@ -104,6 +105,25 @@ def main() -> None:
     )
 
     print("Pipeline result:", result.model_dump())
+
+    integer_data = {
+        "name": "fn_add_numbers",
+        "arguments": {
+            "a": 265,
+            "b": 345,
+        },
+    }
+
+    integer_result = build_function_call_output(
+        integer_data,
+        "What is the sum of 265 and 345?",
+        definitions,
+    )
+
+    print(
+        "Integer normalization:",
+        integer_result.parameters,
+    )
 
     try:
         bad_text = (

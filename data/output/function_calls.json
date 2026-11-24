@@ -11,8 +11,8 @@
         "prompt": "What is the sum of 265 and 345?",
         "name": "fn_add_numbers",
         "parameters": {
-            "a": 2.65,
-            "b": 3.45
+            "a": 265.0,
+            "b": 345.0
         }
     },
     {
@@ -47,14 +47,14 @@
         "prompt": "What is the square root of 16?",
         "name": "fn_get_square_root",
         "parameters": {
-            "a": 10000.0
+            "a": 16.0
         }
     },
     {
         "prompt": "Calculate the square root of 144",
         "name": "fn_get_square_root",
         "parameters": {
-            "a": 1.44
+            "a": 144.0
         }
     },
     {
