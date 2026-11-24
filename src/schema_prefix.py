@@ -62,6 +62,14 @@ def check_parameter_types(
             if not isinstance(value, (int, float)):
                 return False
 
+        elif parameter.type == "integer":
+            if isinstance(value, bool) or not isinstance(value, int):
+                return False
+
+        elif parameter.type == "boolean":
+            if not isinstance(value, bool):
+                return False
+
     return True
 
 
@@ -265,10 +273,40 @@ def parse_parameter_value(
             return PrefixStatus.INVALID
         return parser.parse_string()
 
-    if parameter_type == "number":
+    if parameter_type in ("number", "integer"):
         if char != "-" and char not in "0123456789":
             return PrefixStatus.INVALID
-        return parser.parse_number()
+
+        start = parser.index
+        status = parser.parse_number()
+
+        if parameter_type == "integer":
+            number_text = parser.text[start:parser.index]
+            if any(c in number_text for c in ".eE"):
+                return PrefixStatus.INVALID
+
+            # parse_number resets the index for incomplete values.
+            # Check the remaining prefix as well.
+            if status == PrefixStatus.INCOMPLETE:
+                remaining = parser.text[start:]
+                if any(c in remaining for c in ".eE"):
+                    return PrefixStatus.INVALID
+
+        return status
+
+    if parameter_type == "boolean":
+        remaining = parser.text[parser.index:]
+
+        if remaining.startswith(("true", "false")):
+            return parser.parse_literal()
+
+        if any(
+            literal.startswith(remaining)
+            for literal in ("true", "false")
+        ):
+            return PrefixStatus.INCOMPLETE
+
+        return PrefixStatus.INVALID
 
     return PrefixStatus.INVALID
 

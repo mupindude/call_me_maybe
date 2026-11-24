@@ -4,6 +4,7 @@ from src.load_data import load_function_definitions
 from src.validate_output import validate_function_call
 from src.validate_output import build_function_call_output
 from src.validate_output import process_generated_output
+from src.models import FunctionCallOutput, FunctionDefinition
 
 
 def main() -> None:
@@ -11,6 +12,21 @@ def main() -> None:
     definitions = load_function_definitions(
         "data/input/functions_definition.json"
     )
+
+    definitions.extend([
+        FunctionDefinition(
+            name="fn_is_even",
+            description="Check if an integer is even.",
+            parameters={"n": {"type": "integer"}},
+            returns={"type": "boolean"},
+        ),
+        FunctionDefinition(
+            name="fn_test_boolean",
+            description="Test a boolean parameter.",
+            parameters={"enabled": {"type": "boolean"}},
+            returns={"type": "string"},
+        ),
+    ])
 
     output = FunctionCallOutput(
         prompt="What is the sum of 2 and 3?",
@@ -143,6 +159,50 @@ def main() -> None:
 
     except ValueError as error:
         print("Invalid function correctly rejected", error)
+
+    integer_output = FunctionCallOutput(
+        prompt="Is 42 even?",
+        name="fn_is_even",
+        parameters={"n": 42},
+    )
+
+    print(
+        "Valid integer parameter:",
+        validate_function_call(integer_output, definitions),
+    )
+
+    boolean_as_integer = FunctionCallOutput(
+        prompt="Is 42 even?",
+        name="fn_is_even",
+        parameters={"n": True},
+    )
+
+    print(
+        "Boolean rejected as integer:",
+        not validate_function_call(boolean_as_integer, definitions),
+    )
+
+    boolean_output = FunctionCallOutput(
+        prompt="Test boolean",
+        name="fn_test_boolean",
+        parameters={"enabled": True},
+    )
+
+    print(
+        "Valid boolean parameter:",
+        validate_function_call(boolean_output, definitions),
+    )
+
+    invalid_boolean = FunctionCallOutput(
+        prompt="Test boolean",
+        name="fn_test_boolean",
+        parameters={"enabled": 1},
+    )
+
+    print(
+        "Integer rejected as boolean:",
+        not validate_function_call(invalid_boolean, definitions),
+    )
 
 
 if __name__ == "__main__":

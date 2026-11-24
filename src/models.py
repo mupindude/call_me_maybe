@@ -6,19 +6,20 @@ from pydantic import (
     StrictFloat,
     StrictInt,
     StrictStr,
+    StrictBool,
 )
 
 
 class ParameterDefinition(BaseModel):
     """Describe the expected type of a function parameter."""
 
-    type: Literal["number", "string"]
+    type: Literal["number", "integer", "string", "boolean"]
 
 
 class ReturnDefinition(BaseModel):
     """Describe the expected return type of a function."""
 
-    type: Literal["number", "string"]
+    type: Literal["number", "integer", "string", "boolean"]
 
 
 class FunctionDefinition(BaseModel):
@@ -45,5 +46,5 @@ class FunctionCallOutput(BaseModel):
     name: StrictStr
     parameters: dict[
         StrictStr,
-        StrictInt | StrictFloat | StrictStr
+        StrictInt | StrictFloat | StrictStr | StrictBool
     ]

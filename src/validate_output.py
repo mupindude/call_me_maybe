@@ -35,8 +35,17 @@ def has_valid_parameter_types(
         if parameter.type == "string":
             if not isinstance(value, str):
                 return False
+
         elif parameter.type == "number":
-            if not isinstance(value, float):
+            if isinstance(value, bool) or not isinstance(value, float):
+                return False
+
+        elif parameter.type == "integer":
+            if isinstance(value, bool) or not isinstance(value, int):
+                return False
+
+        elif parameter.type == "boolean":
+            if not isinstance(value, bool):
                 return False
 
     return True

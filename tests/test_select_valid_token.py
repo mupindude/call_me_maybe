@@ -1,4 +1,3 @@
-
 from src.generation import select_valid_token
 from src.models import FunctionDefinition
 
