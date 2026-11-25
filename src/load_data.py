@@ -1,7 +1,5 @@
 import json
-
 from pydantic import ValidationError
-
 from src.models import FunctionDefinition, TestCase
 
 

@@ -1,6 +1,5 @@
 
 import json
-
 from src.models import FunctionDefinition
 
 
@@ -113,6 +112,10 @@ def build_qwen_prompt(
         "apostrophes, quotation marks, and punctuation.\n"
         "Do not rewrite, paraphrase, normalize, or remove any "
         "part of the template.\n\n"
+        "Example of preserving quotation marks in a template:\n"
+        "User request: Format template: Say \"hello\" to {name}\n"
+        "Correct JSON argument:\n"
+        '{"template": "Say \\"hello\\" to {name}"}\n\n'
         "For each function call, return a json object with "
         "function name and arguments within "
         "<tool_call></tool_call> XML tags:\n"
