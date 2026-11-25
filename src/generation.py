@@ -5,7 +5,6 @@ from src.schema_prefix import check_tool_call_prefix
 from llm_sdk import Small_LLM_Model
 from src.tokenizer_utils import (
     decode_utf8_prefix,
-    get_added_token_id,
     mask_invalid_logits,
     select_next_token,
 )
@@ -110,12 +109,12 @@ def generate_constrained_text(
     prompt: str,
     token_bytes: dict[int, bytes],
     definitions: list[FunctionDefinition],
+    opening_id: int,
+    closing_id: int,
+    end_id: int,
     max_new_tokens: int = 100,
 ) -> str:
     """Generate a function call while enforcing its JSON schema."""
-    opening_id = get_added_token_id(model, "<tool_call>")
-    closing_id = get_added_token_id(model, "</tool_call>")
-    end_id = get_added_token_id(model, "<|im_end|>")
 
     input_ids = model.encode(prompt).tolist()[0]
     generated_token_ids: list[int] = []
