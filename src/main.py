@@ -1,7 +1,6 @@
 import json
 import sys
 from pathlib import Path
-from src.tokenizer_utils import get_added_token_id
 from src.arguments import parse_arguments
 from src.generation import generate_constrained_text
 from src.load_data import (
@@ -49,10 +48,11 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        model, token_bytes = initialize_model_resources()
-        opening_id = get_added_token_id(model, "<tool_call>")
-        closing_id = get_added_token_id(model, "</tool_call>")
-        end_id = get_added_token_id(model, "<|im_end|>")
+        model, token_bytes, added_tokens = initialize_model_resources()
+
+        opening_id = added_tokens["<tool_call>"]
+        closing_id = added_tokens["</tool_call>"]
+        end_id = added_tokens["<|im_end|>"]
         results: list[FunctionCallOutput] = []
 
         for test_case in test_cases:

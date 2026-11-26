@@ -156,3 +156,31 @@ def get_added_token_id(
                 return token_id
 
     raise ValueError(f"Added token not found: {content}")
+
+
+def load_tokenizer_data(
+    model: Small_LLM_Model,
+) -> tuple[dict[int, str], set[int], dict[str, int]]:
+    """Load vocabulary and added-token information in one pass."""
+    path = model.get_path_to_tokenizer_file()
+
+    with open(path, "r", encoding="utf-8") as file:
+        tokenizer = json.load(file)
+
+    id_to_token = {
+        token_id: token
+        for token, token_id in tokenizer["model"]["vocab"].items()
+    }
+
+    added_token_ids: set[int] = set()
+    added_tokens: dict[str, int] = {}
+
+    for token in tokenizer["added_tokens"]:
+        token_id = token["id"]
+        content = token["content"]
+
+        id_to_token[token_id] = content
+        added_token_ids.add(token_id)
+        added_tokens[content] = token_id
+
+    return id_to_token, added_token_ids, added_tokens
